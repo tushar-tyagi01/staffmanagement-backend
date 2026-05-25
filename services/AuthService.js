@@ -14,37 +14,34 @@ class AuthService {
     return { token, user };
   }
 
- static async checkUserRegistrationState({ email }) {
+  static async checkUserRegistrationState({ email }) {
+    const normalizedEmail = String(email).trim().toLowerCase();
 
-  const normalizedEmail = String(email)
-    .trim()
-    .toLowerCase();
+    const user = await User.findOne({
+      email: normalizedEmail,
+    });
 
-  const user = await User.findOne({
-    email: normalizedEmail,
-  });
+    if (!user) {
+      return { type: "NEW_USER" };
+    }
 
-  if (!user) {
-    return { type: "NEW_USER" };
+    // User fully registered
+    if (user.isVerified && user.password) {
+      return { type: "ALREADY_REGISTERED" };
+    }
+
+    // OTP verification pending
+    if (!user.isVerified) {
+      return { type: "OTP_PENDING", user };
+    }
+
+    // Password creation pending
+    if (user.isVerified && !user.password) {
+      return { type: "PASSWORD_PENDING", user };
+    }
+
+    return { type: "UNKNOWN", user };
   }
-
-  // User fully registered
-  if (user.isVerified && user.password) {
-    return { type: "ALREADY_REGISTERED" };
-  }
-
-  // OTP verification pending
-  if (!user.isVerified) {
-    return { type: "OTP_PENDING", user };
-  }
-
-  // Password creation pending
-  if (user.isVerified && !user.password) {
-    return { type: "PASSWORD_PENDING", user };
-  }
-
-  return { type: "UNKNOWN", user };
-}
 
   static async createStaffId() {
     const counter = await Counter.findOneAndUpdate(

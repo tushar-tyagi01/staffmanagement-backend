@@ -146,9 +146,10 @@ class EmployeeController {
       delete result.otp;
       delete result.otpExpiry;
 
-      return res.status(201).json({
+      return res.status(200).json({
         success: true,
         status: otpSent ? "OTP_SENT" : "EMPLOYEE_CREATED",
+        otpSent,
         message: otpSent
           ? "Employee added successfully. OTP has been sent to their email."
           : "Employee added successfully. OTP sending failed - please resend manually.",
