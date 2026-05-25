@@ -14,19 +14,10 @@ if (process.env.NODE_ENV !== "test") {
   app.use(morgan("combined"));
 }
 
-app.use(
-  cors({
-    origin: [
-      "http://localhost:3000",
-      "http://localhost:5173",
-      "http://localhost:5174",
-      "https://staffmanagement-frontend.vercel.app",
-    ],
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    optionsSuccessStatus: 200,
-  }),
-);
+app.use(cors({
+  origin: "*",
+  credentials: true,
+}));
 
 // Handle preflight requests
 app.options(/(.*)/, cors());
