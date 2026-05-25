@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/AuthModel");
+const Counter = require("../models/Counter");
 
 class AuthService {
   static async tokenGenerator(user, expiresIn = "10m") {
@@ -46,17 +47,13 @@ class AuthService {
 }
 
   static async createStaffId() {
-    const lastUser = await User.findOne({}).sort({ createdAt: -1 });
+    const counter = await Counter.findOneAndUpdate(
+      { _id: "staffId" },
+      { $inc: { seq: 1 } },
+      { new: true, upsert: true },
+    );
 
-    let nextNumber = 1;
-
-    if (lastUser && lastUser.staffId) {
-      const number = parseInt(lastUser.staffId.replace("STF", ""));
-
-      nextNumber = number + 1;
-    }
-
-    return `STF${String(nextNumber).padStart(4, "0")}`;
+    return `STF${String(counter.seq).padStart(4, "0")}`;
   }
 }
 
