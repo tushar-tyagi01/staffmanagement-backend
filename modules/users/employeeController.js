@@ -1,6 +1,7 @@
 const User = require("../../models/AuthModel");
 const bcrypt = require("bcrypt");
 const OTPService = require("../../services/OtpService");
+const AuthService = require("../../services/AuthService");
 
 class EmployeeController {
   // GET /api/employees
@@ -81,7 +82,10 @@ class EmployeeController {
         role = "staff",
       } = req.body;
 
-      const existing = await User.findOne({ email });
+      const normalizedEmail = String(email || "")
+        .trim()
+        .toLowerCase();
+      const existing = await User.findOne({ email: normalizedEmail });
       if (existing) {
         return res
           .status(400)
@@ -91,23 +95,42 @@ class EmployeeController {
       // Normalize phone number for consistency
       const normalizedPhone = String(phoneNumber || "0000000000").trim();
 
-      // Auto-generate staffId
-      const count = await User.countDocuments();
-      const staffId = `EMP-${1000 + count + 1}`;
+      // Auto-generate staffId in a safer way
+      let employee;
+      let staffId;
+      const maxAttempts = 5;
 
-      // Create employee without password
-      const employee = await User.create({
-        name,
-        email,
-        phoneNumber: normalizedPhone,
-        department,
-        designation,
-        salary,
-        joiningDate,
-        role,
-        staffId,
-        isVerified: false,
-      });
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        staffId = await AuthService.createStaffId();
+        try {
+          employee = await User.create({
+            name,
+            email: normalizedEmail,
+            phoneNumber: normalizedPhone,
+            department,
+            designation,
+            salary,
+            joiningDate,
+            role,
+            staffId,
+            isVerified: false,
+          });
+          break;
+        } catch (error) {
+          if (
+            error.name === "MongoServerError" &&
+            error.code === 11000 &&
+            error.keyValue &&
+            error.keyValue.staffId
+          ) {
+            if (attempt === maxAttempts) {
+              throw error;
+            }
+            continue;
+          }
+          throw error;
+        }
+      }
 
       // Send OTP to employee's email
       let otpSent = false;
@@ -161,30 +184,24 @@ class EmployeeController {
   }
 
   async sendSetupLink(req, res) {
-  try {
+    try {
+      const { email, setupLink, employeeName } = req.body;
 
-    const {
-      email,
-      setupLink,
-      employeeName,
-    } = req.body;
+      // validation
+      if (!email || !setupLink) {
+        return res.status(400).json({
+          success: false,
+          message: "Email and setup link are required",
+        });
+      }
 
-    // validation
-    if (!email || !setupLink) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Email and setup link are required",
-      });
-    }
+      // create mail service
+      const Mail = require("../../services/MailService");
 
-    // create mail service
-    const Mail = require("../../services/MailService");
+      const mailService = new Mail();
 
-    const mailService = new Mail();
-
-    // email template
-    const html = `
+      // email template
+      const html = `
       <div style="
         font-family: Arial;
         max-width: 600px;
@@ -239,34 +256,26 @@ class EmployeeController {
       </div>
     `;
 
-    // send mail
-    await mailService.sendMail({
-      to: email,
-      subject:
-        "Complete Your Employee Account Setup",
-      html,
-    });
+      // send mail
+      await mailService.sendMail({
+        to: email,
+        subject: "Complete Your Employee Account Setup",
+        html,
+      });
 
-    return res.status(200).json({
-      success: true,
-      message:
-        "Setup link sent successfully",
-    });
+      return res.status(200).json({
+        success: true,
+        message: "Setup link sent successfully",
+      });
+    } catch (error) {
+      console.error("Setup link email error:", error);
 
-  } catch (error) {
-
-    console.error(
-      "Setup link email error:",
-      error
-    );
-
-    return res.status(500).json({
-      success: false,
-      message:
-        "Failed to send setup link",
-    });
+      return res.status(500).json({
+        success: false,
+        message: "Failed to send setup link",
+      });
+    }
   }
-}
 
   // DELETE /api/employees/:id
   async remove(req, res) {
@@ -297,9 +306,7 @@ class EmployeeController {
       }
 
       try {
-        await OTPService.sendOtp(
-  employee.email
-);
+        await OTPService.sendOtp(employee.email);
         return res.status(200).json({
           success: true,
           message: `OTP resent to ${employee.email}`,
