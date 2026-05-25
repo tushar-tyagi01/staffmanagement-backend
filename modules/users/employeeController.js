@@ -135,7 +135,7 @@ class EmployeeController {
       // Send OTP to employee's email
       let otpSent = false;
       try {
-        await OTPService.sendOtp(email);
+        await OTPService.sendOtp(normalizedEmail);
         otpSent = true;
       } catch (error) {
         console.error("OTP sending failed:", error.message);
